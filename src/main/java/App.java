@@ -1,11 +1,8 @@
 import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import service.CryptoService;
+import service.HellmanService;
+import service.UtilService;
 
 /**
  * @author João Vitor Brasil
@@ -13,6 +10,10 @@ import org.apache.commons.codec.binary.Hex;
 public class App {
 
     public static void main(String[] args) {
+
+        var crypto = new CryptoService();
+        var hellmann = new HellmanService();
+        var utils = new UtilService();
 
         var p = "B10B8F96A080E01DDE92DE5EAE5D54EC52C99FBCFB06A3C6" +
                 "9A6A9DCA52D23B616073E28675A23D189838EF1E2EE652C0" +
@@ -46,84 +47,21 @@ public class App {
 
         var BDecimal = new BigInteger(avelinosB, 16);
 
-        var randomA = generateRangeRandomNumber(pDecimal);
+        var randomA = hellmann.generateRangeRandomNumber(pDecimal);
 
-        var A = calculateHellman(randomA, gDecimal, pDecimal);
+        var A = hellmann.calculate(randomA, gDecimal, pDecimal);
 
-        System.out.println("Message A: " + A.toString(16).toUpperCase());
+        var V = hellmann.calculate(randomA, BDecimal, pDecimal);
 
-        var V = calculateHellman(randomA, BDecimal, pDecimal);
+        var key = utils.getKeyFrom(V);
 
-        var key = getKeyFrom(V);
+        var deciphered = crypto.decipher(key, avelinosMessage);
 
-        var deciphered = decipher(key, avelinosMessage);
+        var reverseDeciphered = utils.reverseMessage(deciphered);
 
-        System.out.println("\nDecipher message: " + deciphered);
+        var reversedCiphered = crypto.cipher(key, reverseDeciphered);
 
-        var reverseDeciphered = new StringBuilder(deciphered).reverse().toString();
-
-        System.out.println("\nReverse message: " + reverseDeciphered);
-
-        var reversedCiphered = cipher(reverseDeciphered, key);
-
-        System.out.println("DOne? " + Hex.encodeHexString(reversedCiphered, false));
+        utils.printServices(A, deciphered, reverseDeciphered, reversedCiphered);
     }
 
-    private static BigInteger generateRangeRandomNumber(BigInteger p) {
-        //return new BigInteger(p.bitLength() - 1, new Random());
-        return new BigInteger("25871485258682674135778040149872947127382250037771" +
-                "091581995132388642827720994948354016341690190222559039923977380234721" +
-                "680272735198905389081051273361625214663954701405755487302622215453064" +
-                "705197101160342515568153692132515759809503430994609559815718182148996" +
-                "506429985695962580514828604949295904892736634820316");
-    }
-
-    private static BigInteger calculateHellman(BigInteger random, BigInteger g, BigInteger p) {
-        return g.modPow(random, p);
-    }
-
-    private static SecretKeySpec getKeyFrom(BigInteger password) {
-        byte[] dataBytes = password.toByteArray();
-
-        try {
-            MessageDigest algorithm = MessageDigest.getInstance("SHA-256");
-            byte[] messageDigest = algorithm.digest(dataBytes);
-
-            return new SecretKeySpec(Arrays.copyOfRange(messageDigest, 0, 16), "AES");
-
-        } catch (NoSuchAlgorithmException e) {
-            return null;
-        }
-
-    }
-
-    public static String decipher(SecretKeySpec key, String message) {
-        try {
-            Cipher cipherDecrypt = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipherDecrypt.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(new byte[16], 0, 16));
-
-            byte[] deciphered = cipherDecrypt.doFinal(Hex.decodeHex(message));
-
-            return new String(Arrays.copyOfRange(deciphered, 16, deciphered.length));
-        } catch (Exception ex) {
-            throw new RuntimeException("Error when decipher" + ex.getMessage());
-        }
-
-    }
-
-    public static byte[] cipher(String message, SecretKeySpec key) {
-        try {
-            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-
-            cipher.init(Cipher.ENCRYPT_MODE, key);
-
-            byte[] encrypted = cipher.doFinal(message.getBytes());
-
-            System.out.println("Ciphered reversed message: " + Hex.encodeHexString(encrypted));
-
-            return encrypted;
-        } catch (Exception ex) {
-            throw new RuntimeException("Error when decipher" + ex.getMessage());
-        }
-    }
 }
